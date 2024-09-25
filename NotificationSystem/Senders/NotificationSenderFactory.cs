@@ -6,15 +6,9 @@ public sealed class NotificationSenderFactory(IServiceProvider serviceProvider) 
 
     public INotificationSender CreateSender(NotificationType type)
     {
-        IEnumerable<INotificationSender> services = _serviceProvider.GetServices<INotificationSender>();
-        foreach (INotificationSender service in services)
-        {
-            if (service.Type == type)
-            {
-                return service;
-            }
-        }
-
-        throw new ArgumentException("Invalid notification type");
+        return _serviceProvider
+            .GetServices<INotificationSender>()
+            .Where(s => s.Type == type)
+            .First();
     }
 }

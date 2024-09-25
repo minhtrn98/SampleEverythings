@@ -7,11 +7,15 @@ using NotificationSystem.Entities;
 using NotificationSystem.Repositories;
 using NotificationSystem.Senders;
 using NotificationSystem.Services;
+using NotificationSystem.Settings;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 IServiceCollection services = builder.Services;
-var configuration = builder.Configuration;
+ConfigurationManager configuration = builder.Configuration;
+
+services.AddOptions<MailSettings>().Bind(configuration.GetSection("MailSettings"));
+services.AddOptions<TelegramSettings>().Bind(configuration.GetSection("TelegramSettings"));
 
 services.AddPooledDbContextFactory<AppDbContext>(options =>
 {
@@ -62,7 +66,15 @@ services.AddScoped<IUserRepository, UserRepository>();
 services.AddScoped<INotificationService, NotificationService>();
 services.AddScoped<IOutboxService, OutboxService>();
 
-var app = builder.Build();
+// Add http client
+services.AddHttpClient("TelegramApi", client =>
+{
+    string botToken = configuration["TelegramSettings:BotToken"] ?? throw new Exception();
+    client.BaseAddress = new Uri($"https://api.telegram.org/bot{botToken}/");
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+});
+
+WebApplication app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
@@ -74,7 +86,7 @@ app.UseHttpsRedirection();
 
 app.UseHangfireDashboard("/hangfire");
 
-app.MapPost("/user", async ([FromBody]User user, AppDbContext dbContext) =>
+app.MapPost("/user", async ([FromBody] User user, AppDbContext dbContext) =>
 {
     await dbContext.Users.AddAsync(user);
     await dbContext.SaveChangesAsync();

@@ -16,15 +16,19 @@ public sealed class NotificationService(
 
     public async Task SendNotification(string message, User user)
     {
+        List<Task> sendTasks = [];
+
         foreach (NotificationType type in Enum.GetValues(typeof(NotificationType)))
         {
             _logger.LogInformation("Checking if user {userId} has enabled notifications of type {type}", user.Id, type);
             if ((user.EnabledNotificationTypes & type) == type && type != NotificationType.None)
             {
                 var sender = _senderFactory.CreateSender(type);
-                await TrySendNotification(sender, message, user);
+                sendTasks.Add(TrySendNotification(sender, message, user));
             }
         }
+
+        await Task.WhenAll(sendTasks);
     }
 
     private async Task TrySendNotification(INotificationSender sender, string message, User user)
