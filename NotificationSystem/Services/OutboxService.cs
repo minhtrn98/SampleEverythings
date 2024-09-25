@@ -29,10 +29,12 @@ public sealed class OutboxService(
                 user ??= await GetUserById(entry.UserId);
                 await sender.Send(entry.Message, user);
                 await _outboxRepository.MarkAsProcessed(entry);
+                _logger.LogInformation("Successfully sent notification of type {type} to user {userId}", sender.Type, user?.Id);
             }
             catch (Exception)
             {
-                // Log and continue retrying later
+                _logger.LogError("Failed to send notification of type {type} to user {userId}", sender.Type, user?.Id);
+                await _outboxRepository.IncreaseFailedCount(entry);
             }
         }
     }

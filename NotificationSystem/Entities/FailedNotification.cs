@@ -9,4 +9,5 @@ public sealed class FailedNotification
     public NotificationType NotificationType { get; set; }
     public string Message { get; set; } = string.Empty;
     public bool IsReProcessSuccess { get; set; }
+    public byte RetryCount { get; set; }
 }
