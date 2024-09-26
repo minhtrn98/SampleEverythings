@@ -1,4 +1,4 @@
-﻿namespace UploadLargeFile.Api;
+﻿namespace ReadLargeFile.Console;
 
 public class Book
 {
@@ -17,4 +17,9 @@ public class Book
     public string? ISBN { get; set; }
 
     public RatingDistribution RatingDistribution { get; set; } = default!;
+
+    public Book()
+    {
+        Id = Ulid.NewUlid().ToGuid();
+    }
 }
