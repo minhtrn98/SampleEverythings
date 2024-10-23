@@ -10,7 +10,7 @@ using System.Globalization;
 /// <summary>
 /// - book2000k-3000k.csv file contains 395_957 rows
 ///     + Read + Saving data using entity framework took: 2.6251554 + 64.8285084 seconds
-///     + Read + Saving data using SqlBulkCopy: 3.8110047 + 5.4166284 seconds
+///     + Read + Saving data using SqlBulkCopy: 3.8110047 + 5.4166284 seconds / Memory usage: 427 MB
 /// - book1-100k.csv file contains 58_292 rows
 ///     + Read + Saving data using entity framework took: 0.5258479 + 11.5094226 seconds
 ///     + Read + Saving data using SqlBulkCopy: 0.7612469 + 1.0769108 seconds
@@ -24,8 +24,8 @@ CsvConfiguration config = new(CultureInfo.InvariantCulture)
     PrepareHeaderForMatch = args => args.Header.ToLower(),
 };
 
-await ReadAndSaveUsingEF(filePath, config);
-//await ReadAndSaveUsingBulkCopy(filePath, config);
+//await ReadAndSaveUsingEF(filePath, config);
+await ReadAndSaveUsingBulkCopy(filePath, config);
 
 Console.ReadLine();
 
@@ -54,7 +54,9 @@ static async Task ReadAndSaveUsingEF(string filePath, CsvConfiguration config)
     Stopwatch stopwatch = new();
     stopwatch.Start();
     Console.WriteLine("Start reading the file...");
-    List<Book> books = ReadCsvBookData(filePath, config);
+    using StreamReader reader = new(filePath);
+    using CsvReader csv = new(reader, config);
+    csv.Context.RegisterClassMap<BookMap>();
     stopwatch.Stop();
     Console.WriteLine($"Read data took {stopwatch.Elapsed.TotalSeconds} seconds");
 
@@ -62,7 +64,7 @@ static async Task ReadAndSaveUsingEF(string filePath, CsvConfiguration config)
     Console.WriteLine("Start saving the data...");
 
     using AppDbContext context = new();
-    await context.Books.AddRangeAsync(books);
+    await context.Books.AddRangeAsync(csv.GetRecords<Book>());
     await context.SaveChangesAsync();
     stopwatch.Stop();
     Console.WriteLine($"Saving data took: {stopwatch.Elapsed.TotalSeconds} seconds");
@@ -117,21 +119,13 @@ static List<Book> ReadExcelBookData(string filePath, Dictionary<string, int> col
     return books;
 }
 
-static List<Book> ReadCsvBookData(string filePath, CsvConfiguration config)
-{
-    using StreamReader reader = new(filePath);
-    using CsvReader csv = new(reader, config);
-    csv.Context.RegisterClassMap<BookMap>();
-    return csv.GetRecords<Book>().ToList();
-}
-
 static async Task ReadAndSaveUsingBulkCopy(string filePath, CsvConfiguration config)
 {
-    SqlBulkCopy bulkBook = new(AppDbContext.ConnectionString)
+    SqlBulkCopy bulkBook = new(AppDbContext.ConnectionString, SqlBulkCopyOptions.UseInternalTransaction | SqlBulkCopyOptions.KeepIdentity)
     {
         DestinationTableName = "dbo.Books"
     };
-    SqlBulkCopy bulkRating = new(AppDbContext.ConnectionString)
+    SqlBulkCopy bulkRating = new(AppDbContext.ConnectionString, SqlBulkCopyOptions.UseInternalTransaction | SqlBulkCopyOptions.KeepIdentity)
     {
         DestinationTableName = "dbo.RatingDistributions"
     };
@@ -158,7 +152,7 @@ static async Task ReadAndSaveUsingBulkCopy(string filePath, CsvConfiguration con
     bulkRating.ColumnMappings.Add(nameof(RatingDistribution.RatingDist5), "RatingDist5");
     bulkRating.ColumnMappings.Add(nameof(RatingDistribution.RatingDistTotal), "RatingDistTotal");
 
-    var (bookTable, ratingTable) = ReadExcelBookDatatable(filePath, config);
+    var (bookTable, ratingTable) = ReadExcelBookDataTable(filePath, config);
 
     Stopwatch stopwatch = new();
     stopwatch.Start();
@@ -170,7 +164,7 @@ static async Task ReadAndSaveUsingBulkCopy(string filePath, CsvConfiguration con
     Console.WriteLine($"Saving data took: {stopwatch.Elapsed.TotalSeconds} seconds");
 }
 
-static (DataTable, DataTable) ReadExcelBookDatatable(string filePath, CsvConfiguration config)
+static (DataTable, DataTable) ReadExcelBookDataTable(string filePath, CsvConfiguration config)
 {
     Stopwatch stopwatch = new();
     stopwatch.Start();
